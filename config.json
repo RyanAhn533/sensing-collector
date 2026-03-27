@@ -37,9 +37,12 @@
         "data_check_interval_sec": 30
     },
     "jetson": {
-        "xhci_path": "3610000.usb",
+        "model": "AGX Thor",
+        "xhci_path": "a80aa10000.usb",
         "display": ":1",
-        "dongle_usb_bus": "1-2"
+        "dongle_usb_bus": "1-2",
+        "docker_container": "gracious_edison",
+        "sensing_code_path": "/home/jetson/work/Real-Time-Driver-State-Emotion-Monitoring-System/sensing"
     },
     "validation": {
         "min_video_size_mb": 5,
