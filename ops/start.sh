@@ -141,7 +141,36 @@ if ! pgrep -f "monitor_ble" >/dev/null 2>&1; then
     log "monitor_ble2.sh 시작 (PID: $!)"
 fi
 
+# ═══ 5. 대시보드 자동 시작 ═══
+log "========== DASHBOARD =========="
+
+# GUI 대시보드 (모니터 있을 때)
+if [ -n "$DISPLAY" ] || [ -f /tmp/.X11-unix/X1 ]; then
+    export DISPLAY="${DISPLAY:-:1}"
+    nohup python3 -u monitor/dashboard_gui.py --participant "$PARTICIPANT_ID" >> "$LOG_DIR/dashboard.log" 2>&1 &
+    log "GUI 대시보드 시작 (PID: $!)"
+else
+    # SSH 등 모니터 없으면 터미널 대시보드 안내
+    log "GUI 없음. 터미널 대시보드: python3 monitor/dashboard.py"
+fi
+
+# ═══ 6. 자동 백업 스케줄 ═══
+if ! pgrep -f "auto_backup" >/dev/null 2>&1; then
+    if [ -f "$SCRIPT_DIR/ops/auto_backup.sh" ]; then
+        nohup bash "$SCRIPT_DIR/ops/auto_backup.sh" "$PARTICIPANT_ID" >> "$LOG_DIR/backup.log" 2>&1 &
+        log "자동 백업 시작 (PID: $!)"
+    fi
+fi
+
 log "========== READY =========="
 log "센싱 시작 완료. $PARTICIPANT_ID"
 log "v=$V a=$A ppg=$P gsr=$G temp=$T"
 log "로그: $LOG_DIR/${PARTICIPANT_ID}_sensing.log"
+log ""
+log "자동 실행 중:"
+log "  - 센싱 (main.py)"
+log "  - BLE 모니터 (monitor_ble2.sh)"
+log "  - 대시보드 (dashboard_gui.py)"
+log "  - 자동 백업 (auto_backup.sh)"
+log ""
+log "모두 자동입니다. 건드리지 마세요."
