@@ -14,80 +14,108 @@ Jetson AGX Thor / Orin Nano에서 운전 시뮬레이션 실험 중 피실험자
 
 ## 전체 시스템 구조
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        JETSON (Thor / Orin)                         │
-│                                                                     │
-│  ┌─────────────────────────────────────────────────────────┐       │
-│  │                   start.sh (원커맨드)                     │       │
-│  │  precheck → sensing → monitor → dashboard → backup       │       │
-│  └────┬──────────┬──────────┬──────────┬──────────┬────────┘       │
-│       │          │          │          │          │                  │
-│       v          v          v          v          v                  │
-│  ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐           │
-│  │main.py │ │monitor │ │monitor │ │dashbrd │ │auto    │           │
-│  │        │ │_ble2.sh│ │_sens.sh│ │_gui.py │ │backup  │           │
-│  │ Camera │ │        │ │        │ │        │ │.sh     │           │
-│  │ Micro  │ │ Watch  │ │ Video  │ │ LED +  │ │        │           │
-│  │ Watch  │ │ auto   │ │ check  │ │ PPG    │ │ Disk → │           │
-│  │ thread │ │ recover│ │ 5min   │ │ graph  │ │ GDrive │           │
-│  └───┬────┘ └───┬────┘ └───┬────┘ └───┬────┘ └───┬────┘           │
-│      │          │          │          │          │                  │
-│      v          v          v          v          v                  │
-│  ┌─────────────────────────────────────────────────────────┐       │
-│  │                    data/C040/                             │       │
-│  │  20260327_1015/  20260327_1016/  20260327_1017/  ...     │       │
-│  │  ├─ video_main.mp4  (30fps 1080p H.264)                  │       │
-│  │  ├─ video_sub.mp4   (30fps 1080p H.264)                  │       │
-│  │  ├─ audio.wav       (48kHz mono)                          │       │
-│  │  ├─ ppg.csv         (100Hz 심박)                          │       │
-│  │  ├─ gsr.csv         (30Hz 피부전도)                       │       │
-│  │  └─ temp.csv        (1Hz 피부온도)                        │       │
-│  └─────────────────────────────────────────────────────────┘       │
-│                           │                                         │
-│                           v                                         │
-│  ┌─────────────────────────────────────────────────────────┐       │
-│  │                  19:00 자동 스케줄 (cron)                 │       │
-│  │  19:00  stop.sh (센싱 종료)                               │       │
-│  │  19:02  validate_session.py (검증 리포트)                 │       │
-│  │  19:05  rclone → Google Drive 백업                        │       │
-│  │  19:30  sync_gdrive_to_nas.py (Drive→NAS, 2회 검증 후    │       │
-│  │         Drive에서 삭제)                                   │       │
-│  └─────────────────────────────────────────────────────────┘       │
-└─────────────────────────────────────────────────────────────────────┘
-                                │
-                                v
-┌──────────────┐    ┌──────────────────┐    ┌──────────────┐
-│ Google Drive │───>│ sync + 2회 검증   │───>│     NAS      │
-│ (임시 저장)  │    │ 파일수 + 용량비교 │    │ (최종 보관)  │
-│              │    │ 통과 시 Drive삭제 │    │              │
-└──────────────┘    └──────────────────┘    └──────────────┘
+```mermaid
+flowchart TB
+    subgraph START["./ops/start.sh C040 (원커맨드)"]
+        direction LR
+        A1[1. Precheck<br/>USB/디스크] --> A2[2. Sensing<br/>main.py] --> A3[3. Monitor<br/>BLE+영상] --> A4[4. Dashboard<br/>GUI] --> A5[5. Backup<br/>자동]
+    end
+
+    subgraph SENSORS["센서 (하드웨어)"]
+        S1[🎥 RealSense<br/>정면 카메라]
+        S2[🎥 RealSense<br/>측면 카메라]
+        S3[🎤 RODE<br/>무선 마이크]
+        S4[⌚ ADI Watch<br/>PPG+EDA+Temp]
+    end
+
+    subgraph CORE["main.py (센서 스레드)"]
+        C1[realsense.py<br/>H.264 30fps]
+        C2[rode.py<br/>48kHz WAV]
+        C3[watch.py<br/>BLE CSV]
+    end
+
+    subgraph MONITOR["자동 모니터링"]
+        M1[monitor_ble2.sh<br/>워치 자동 복구<br/>2분마다]
+        M2[monitor_sensing.sh<br/>영상 감시<br/>5분마다]
+        M3[dashboard_gui.py<br/>센서 LED + PPG 그래프]
+    end
+
+    subgraph DATA["data/C040/ (1분 단위)"]
+        D1[video_main.mp4<br/>~35MB/min]
+        D2[video_sub.mp4<br/>~33MB/min]
+        D3[audio.wav<br/>~5.5MB/min]
+        D4[ppg.csv<br/>~32KB/min]
+        D5[gsr.csv<br/>~12KB/min]
+        D6[temp.csv<br/>~0.8KB/min]
+    end
+
+    subgraph CRON["19:00 자동 스케줄"]
+        CR1["19:00 센싱 종료"]
+        CR2["19:02 데이터 검증"]
+        CR3["19:05 GDrive 백업"]
+        CR4["19:30 Drive→NAS<br/>2회 검증 후 삭제"]
+    end
+
+    subgraph BACKUP["백업 저장소"]
+        B1[(Google Drive<br/>임시)]
+        B2[(NAS<br/>최종 보관)]
+    end
+
+    START --> CORE
+    S1 --> C1
+    S2 --> C1
+    S3 --> C2
+    S4 --> C3
+    CORE --> DATA
+    DATA --> CRON
+    CRON --> B1
+    B1 -->|2회 검증| B2
+    MONITOR -.->|감시| CORE
+
+    style START fill:#1a1a2e,color:#e0e0ff,stroke:#4a4aff
+    style DATA fill:#1a2e1a,color:#e0ffe0,stroke:#4aff4a
+    style CRON fill:#2e1a1a,color:#ffe0e0,stroke:#ff4a4a
+    style BACKUP fill:#2e2e1a,color:#ffffe0,stroke:#ffff4a
 ```
 
 ---
 
 ## 데이터 보호 전략 (4중)
 
-```
-                    ┌─────────────────┐
-                    │   ADI Watch     │
-                    │   (손목)        │
-                    └───┬───┬───┬────┘
-                        │   │   │
-           ┌────────────┘   │   └────────────┐
-           v                v                v
-    ┌──────────┐    ┌──────────┐    ┌──────────┐
-    │ 1. BLE   │    │ 2. Flash │    │ 3. LT    │
-    │ 실시간   │    │ 이중기록 │    │ 자율로깅 │
-    │ CSV 저장 │    │ NAND     │    │ (BLE 끊겨│
-    │          │    │          │    │  도 기록) │
-    └──────────┘    └──────────┘    └──────────┘
-           │                │                │
-           v                v                v
-    ┌─────────────────────────────────────────┐
-    │        4. 외장하드 + GDrive + NAS        │
-    │        자동 백업 (1시간마다)              │
-    └─────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    WATCH["⌚ ADI Study Watch<br/>(피실험자 손목)"]
+
+    WATCH --> L1 & L2 & L3
+
+    subgraph LAYER1["Layer 1: BLE 실시간"]
+        L1["📡 BLE 스트림<br/>→ CSV 즉시 저장<br/>ppg.csv / gsr.csv / temp.csv"]
+    end
+
+    subgraph LAYER2["Layer 2: Flash 이중기록"]
+        L2["💾 워치 내부 NAND<br/>→ fs_subscribe 이중기록<br/>BLE 끊겨도 안전"]
+    end
+
+    subgraph LAYER3["Layer 3: LT 자율로깅"]
+        L3["🔒 워치 자체 로깅<br/>→ BLE 연결 없이도 기록<br/>최후의 보루"]
+    end
+
+    L1 --> STORAGE
+    L2 -->|"실험 후 다운로드<br/>flash_download.py"| STORAGE
+    L3 -->|"복구 시<br/>recover_watch.py"| STORAGE
+
+    subgraph STORAGE["Layer 4: 외부 백업 (자동)"]
+        direction LR
+        ST1["🖴 외장하드"]
+        ST2["☁️ Google Drive"]
+        ST3["🏢 NAS"]
+        ST1 ~~~ ST2 ~~~ ST3
+    end
+
+    style LAYER1 fill:#0d4f0d,color:#90EE90,stroke:#2ecc71
+    style LAYER2 fill:#4f3d0d,color:#FFE4B5,stroke:#f39c12
+    style LAYER3 fill:#4f0d0d,color:#FFB6C1,stroke:#e74c3c
+    style STORAGE fill:#0d0d4f,color:#ADD8E6,stroke:#3498db
 ```
 
 ---
@@ -104,6 +132,31 @@ Jetson AGX Thor / Orin Nano에서 운전 시뮬레이션 실험 중 피실험자
 | ADI Watch - Temp | 피부온도 | 1Hz | temp.csv | ~0.8KB |
 
 **1시간 = ~4.5GB, 하루 8시간 = ~36GB**
+
+---
+
+## 하루 실험 흐름
+
+```mermaid
+flowchart LR
+    A["🌅 출근<br/>장비 확인"] --> B["▶️ start.sh<br/>센싱 시작"]
+    B --> C["🧪 실험 1<br/>피실험자"]
+    C --> D{"다음<br/>참가자?"}
+    D -->|Yes| E["🔄 stop → start<br/>참가자 전환"]
+    E --> C
+    D -->|No| F["🌆 19:00<br/>자동 종료"]
+    F --> G["✅ 검증<br/>validate"]
+    G --> H["☁️ 백업<br/>GDrive→NAS"]
+    H --> I["🏠 퇴근"]
+
+    style A fill:#fff3cd,color:#333,stroke:#ffc107
+    style B fill:#d4edda,color:#333,stroke:#28a745
+    style C fill:#cce5ff,color:#333,stroke:#007bff
+    style F fill:#f8d7da,color:#333,stroke:#dc3545
+    style G fill:#d4edda,color:#333,stroke:#28a745
+    style H fill:#cce5ff,color:#333,stroke:#007bff
+    style I fill:#fff3cd,color:#333,stroke:#ffc107
+```
 
 ---
 
@@ -227,18 +280,33 @@ sensing-collector/
 
 ## 자동 백업 파이프라인
 
-```
-실험 중 (1시간마다)              저녁 7시 (cron 자동)
-────────────────────            ────────────────────
-auto_backup.sh                  19:00  stop.sh
-  │                             19:02  validate_session.py
-  ├── 외장하드 (있으면)          19:05  rclone → Google Drive
-  ├── Google Drive (rclone)     19:30  sync_gdrive_to_nas.py
-  ├── GCS (gsutil)                      │
-  └── NAS (마운트 시)                    ├── Drive→NAS 복사
-                                         ├── 1차: 파일 수 비교
-                                         ├── 2차: 용량 비교 (5% 오차)
-                                         └── 통과 → Drive 삭제
+```mermaid
+flowchart LR
+    subgraph REALTIME["실험 중 (매 1시간)"]
+        direction TB
+        R1["auto_backup.sh"] --> R2{"외장하드<br/>연결됨?"}
+        R2 -->|Yes| R3["🖴 외장하드 복사"]
+        R2 -->|No| R4{"rclone<br/>설정됨?"}
+        R4 -->|Yes| R5["☁️ Google Drive"]
+        R4 -->|No| R6["⚠️ 백업 없음"]
+    end
+
+    subgraph EVENING["저녁 7시 (cron 자동)"]
+        direction TB
+        E1["19:00 센싱 종료"] --> E2["19:02 검증 리포트"]
+        E2 --> E3["19:05 GDrive 업로드"]
+        E3 --> E4["19:30 Drive→NAS"]
+        E4 --> V1{"1차: 파일 수<br/>비교"}
+        V1 -->|일치| V2{"2차: 용량<br/>비교 (5%)"}
+        V1 -->|불일치| FAIL["❌ 삭제 안 함"]
+        V2 -->|통과| DEL["✅ Drive 삭제<br/>용량 확보"]
+        V2 -->|실패| FAIL
+    end
+
+    REALTIME -.->|"데이터 누적"| EVENING
+
+    style REALTIME fill:#1a2e1a,color:#e0ffe0,stroke:#4aff4a
+    style EVENING fill:#1a1a2e,color:#e0e0ff,stroke:#4a4aff
 ```
 
 ### Google Drive 세팅
