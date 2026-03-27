@@ -1,0 +1,51 @@
+{
+    "device": {
+        "realsense_main_serial": "021222070391",
+        "realsense_sub_serial": "405622073483",
+        "watch_mac": "F9:5A:50:8B:B2:F9",
+        "watch_dongle_serial": "C832CD764DD7",
+        "watch_dongle_vid": "0456",
+        "watch_dongle_pid": "2CFE",
+        "rode_keywords": ["wireless", "rode", "go"]
+    },
+    "paths": {
+        "data_dir": "data",
+        "log_dir": "logs",
+        "dcb_dir": "dcb_cfg"
+    },
+    "video": {
+        "width": 1920,
+        "height": 1080,
+        "fps": 30,
+        "bitrate": 20000000,
+        "codec": "h264"
+    },
+    "audio": {
+        "samplerate": 48000,
+        "channels": 1,
+        "blocksize": 8192
+    },
+    "watch": {
+        "sensor_order": ["ADPD", "Temp", "EDA"],
+        "enable_flash_log": true,
+        "enable_agc": false
+    },
+    "monitor": {
+        "ble_check_interval_sec": 120,
+        "ble_stale_threshold_sec": 150,
+        "video_check_interval_sec": 300,
+        "data_check_interval_sec": 30
+    },
+    "jetson": {
+        "xhci_path": "3610000.usb",
+        "display": ":1",
+        "dongle_usb_bus": "1-2"
+    },
+    "validation": {
+        "min_video_size_mb": 5,
+        "min_audio_size_kb": 100,
+        "min_ppg_rows": 100,
+        "max_gap_seconds": 120,
+        "expected_modalities": ["video_main", "video_sub", "audio", "ppg", "temp"]
+    }
+}
