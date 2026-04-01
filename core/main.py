@@ -49,7 +49,7 @@ def notify_popup(title, message):
     try:
         subprocess.Popen(
             ["zenity", "--warning", "--title", title, "--text", message, "--timeout", "10"],
-            env={**os.environ, "DISPLAY": ":1", "XAUTHORITY": "/run/user/1000/gdm/Xauthority"},
+            env={**os.environ, "DISPLAY": os.environ.get("DISPLAY", ":1")},
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
     except Exception:
@@ -64,13 +64,13 @@ def ask_claude_for_help(name, error_msg, traceback_str):
             f"에러: {error_msg}\n"
             f"트레이스백:\n{traceback_str}\n\n"
             f"이 에러를 분석하고 가능하면 자동으로 고쳐주세요. "
-            f"코드 경로: /home/jetson/Desktop/sensing_code/"
+            f"코드 경로: {os.path.dirname(os.path.abspath(__file__))}"
         )
         log_path = f"logs/{name}_claude_fix.txt"
         result = subprocess.run(
             ["claude", "--print", "-p", prompt],
             capture_output=True, text=True, timeout=120,
-            cwd="/home/jetson/Desktop/sensing_code"
+            cwd=os.path.dirname(os.path.abspath(__file__))
         )
         with open(log_path, "a") as f:
             f.write(f"\n{'='*50}\n{datetime.datetime.now()}\n")
