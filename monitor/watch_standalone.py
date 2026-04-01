@@ -5,6 +5,12 @@ BLE 끊김 자동 감지 + 자동 재연결.
 """
 import os, sys, time, csv, datetime, threading, subprocess, signal
 
+# 에뮬레이터 모드: WATCH_EMULATOR=1 이면 실제 SDK 대신 에뮬레이터 사용
+if os.environ.get("WATCH_EMULATOR") == "1":
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "tests"))
+    from watch_emulator import activate_emulator
+    activate_emulator()
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "core"))
 from watch import run_watch
 
