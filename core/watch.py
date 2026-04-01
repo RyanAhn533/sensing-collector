@@ -61,6 +61,26 @@ def _patched_ble_open(self):
 _bm.BLEManager._open = _patched_ble_open
 
 
+def _patched_disconnect(self):
+    """USB interface를 확실히 release하는 disconnect."""
+    try:
+        self._is_connected.clear()
+    except Exception:
+        pass
+    if hasattr(self, 'device') and self.device:
+        try:
+            self.device.releaseInterface(0)
+        except Exception:
+            pass
+        try:
+            self.device.close()
+        except Exception:
+            pass
+        self.device = None
+
+_bm.BLEManager.disconnect = _patched_disconnect
+
+
 def find_dongle(max_wait_s: int = 10):
     """USB 동글 포트를 찾는다."""
     deadline = time.time() + max_wait_s

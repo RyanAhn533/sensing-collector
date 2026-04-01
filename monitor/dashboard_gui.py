@@ -203,7 +203,7 @@ def draw_ppg_graph(canvas, x, y, w, h, data):
     cv2.rectangle(canvas, (x, y), (x + w, y + h), DARK, -1)
     cv2.rectangle(canvas, (x, y), (x + w, y + h), GRAY, 1)
     cv2.putText(canvas, "PPG (Heart Rate Signal)", (x + 5, y + 15),
-                 FONT_PLAIN, 1.0, CYAN, 1) if hasattr(cv2, 'FONT_HERSHEY_PLAIN') else None
+                 FONT_SMALL, 1.0, CYAN, 1) if hasattr(cv2, 'FONT_HERSHEY_PLAIN') else None
     cv2.putText(canvas, "PPG", (x + 5, y + 15), FONT_SMALL, 1.0, CYAN, 1)
 
     if len(data) < 2:

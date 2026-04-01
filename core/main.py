@@ -5,12 +5,12 @@ import threading
 import faulthandler
 import subprocess
 import glob
-import csv
+# csv는 watch_standalone.py에서 사용
 
 # --- 센서 모듈 ---
 from realsense import run_realsense
 from rode import run_rode
-from watch import run_watch
+# watch는 watch_standalone.py에서 별도 프로세스로 실행 (동글 경쟁 방지)
 
 # 2cam 시리얼 번호
 RS_MAIN_SERIAL = "021222070391"
@@ -179,71 +179,6 @@ if __name__ == "__main__":
     subprocess.run(["sudo", "-n", "systemctl", "stop", "bluetooth"],
                    capture_output=True, timeout=5)
 
-    # USB 허브 리셋 (동글 안정화)
-    subprocess.run(["sudo", "-n", "sh", "-c",
-                    "echo 0 > /sys/bus/usb/devices/1-2/authorized"],
-                   capture_output=True, timeout=5)
-    time.sleep(3)
-    subprocess.run(["sudo", "-n", "sh", "-c",
-                    "echo 1 > /sys/bus/usb/devices/1-2/authorized"],
-                   capture_output=True, timeout=5)
-    time.sleep(5)
-
-    # ── 워치 CSV 저장 래퍼 ──
-    _csv_lock = threading.Lock()
-    _csv_writers = {}  # {sensor: (file, writer, minute_str)}
-
-    def _get_csv_writer(sensor, header):
-        """1분 단위 CSV 롤링 저장."""
-        now_min = datetime.datetime.now().strftime("%Y%m%d_%H%M")
-        with _csv_lock:
-            if sensor in _csv_writers:
-                f, w, prev_min = _csv_writers[sensor]
-                if prev_min == now_min:
-                    return w
-                # 이전 파일 닫기
-                try:
-                    f.close()
-                except Exception:
-                    pass
-
-            minute_dir = os.path.join(save_root, now_min)
-            os.makedirs(minute_dir, exist_ok=True)
-            fpath = os.path.join(minute_dir, f"{sensor}.csv")
-            f = open(fpath, "a", newline="")
-            w = csv.writer(f)
-            if os.path.getsize(fpath) == 0:
-                w.writerow(header)
-            _csv_writers[sensor] = (f, w, now_min)
-            return w
-
-    def on_ppg(ts, d1, d2):
-        w = _get_csv_writer("ppg", ["timestamp", "ch1", "ch2"])
-        w.writerow([ts, d1, d2])
-
-    def on_eda(ts, real):
-        w = _get_csv_writer("gsr", ["timestamp", "imp_real"])
-        w.writerow([ts, real])
-
-    def on_temp(ts, skin_c):
-        w = _get_csv_writer("temp", ["timestamp", "skin_temperature"])
-        w.writerow([ts, skin_c])
-
-    def on_ecg(ts, ecg_mv):
-        w = _get_csv_writer("ecg", ["timestamp", "ecg_mv"])
-        w.writerow([ts, ecg_mv])
-
-    def on_accel(ts, x, y, z):
-        w = _get_csv_writer("adxl", ["timestamp", "x", "y", "z"])
-        w.writerow([ts, x, y, z])
-
-    def on_sqi(ts, sqi_val):
-        w = _get_csv_writer("sqi", ["timestamp", "sqi"])
-        w.writerow([ts, sqi_val])
-
-    def on_loss(sensor, lost):
-        print(f"[WATCH] 패킷 유실: {sensor} = {lost}")
-
     threads = [
         threading.Thread(
             target=safe_run_with_retry(run_realsense, "realsense_main", 3,
@@ -270,21 +205,7 @@ if __name__ == "__main__":
                                        pub=None),
             daemon=True,
         ),
-        threading.Thread(
-            target=safe_run_with_retry(run_watch, "watch", 5,
-                                       shutdown_event=shutdown_event,
-                                       on_ppg=on_ppg,
-                                       on_eda=on_eda,
-                                       on_temp=on_temp,
-                                       on_ecg=None,
-                                       on_accel=None,
-                                       on_sqi=None,
-                                       on_packet_loss=on_loss,
-                                       enable_flash_log=True,
-                                       enable_agc=True,
-                                       prefer_ble_native=False),
-            daemon=True,
-        ),
+        # 워치는 watch_standalone.py에서 별도 프로세스로 실행 (start.sh가 관리)
         # 데이터 모니터링 스레드
         threading.Thread(
             target=monitor_data,

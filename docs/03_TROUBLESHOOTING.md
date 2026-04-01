@@ -27,7 +27,7 @@
 - 꽂은 후 **10초 기다리세요**
 
 **2단계: 워치 확인**
-- 워치 화면을 **터치해서 깨워주세요**
+- 워치 **옆면 버튼을 1초 꾹 눌러서 깨워주세요**
 - 충전 크래들에 있으면 **빼주세요**
 
 **3단계: 다시 시작**
@@ -87,7 +87,7 @@ sleep 5
 - 2분 안에 복구되는 경우가 많습니다
 
 **2단계: 워치 깨우기**
-- 워치 화면을 **손가락으로 터치**
+- 워치 **옆면 Navigation 버튼을 1초 꾹 누르기**
 - 화면이 켜지는지 확인
 
 **3단계: 그래도 안 되면 — 워치 리셋**
@@ -177,7 +177,53 @@ rm -rf data/C035
 
 ---
 
-## 문제 7: "이상한 에러 메시지가 나와요"
+## 문제 7: "워치가 LIBUSB_ERROR_BUSY로 안 잡혀요"
+
+### 원인
+- 이전 프로세스(activate_lt.py 등)가 동글 USB를 점유한 채 안 놓음
+- main.py 내부 watch 스레드와 외부 프로세스가 동시에 동글 접근
+
+### 해결
+
+**1단계: 동글 sysfs 리셋 (main.py 안 죽이고)**
+```bash
+# 동글 경로 찾기
+for d in /sys/bus/usb/devices/*/idVendor; do
+  v=$(cat $d 2>/dev/null)
+  [ "$v" = "0456" ] && echo $(dirname $d)
+done
+
+# 리셋 (찾은 경로로)
+sudo sh -c "echo 0 > /sys/bus/usb/devices/1-4.1.3/authorized"
+sleep 2
+sudo sh -c "echo 1 > /sys/bus/usb/devices/1-4.1.3/authorized"
+sleep 5
+```
+
+**2단계: 그래도 안 되면 xhci 풀 리셋**
+```bash
+# SSH 끊길 수 있음 — 재접속 필요
+echo a80aa10000.usb | sudo tee /sys/bus/platform/drivers/tegra-xusb/unbind
+sleep 2
+echo a80aa10000.usb | sudo tee /sys/bus/platform/drivers/tegra-xusb/bind
+sleep 8
+```
+
+**3단계: watch_standalone으로 워치만 재시작**
+```bash
+cd ~/work/sensing-collector
+python3 -u monitor/watch_standalone.py C0XX &
+```
+> main.py가 살아있으면 영상/오디오는 계속 녹화 중.
+> watch_standalone이 같은 폴더에 CSV를 쓴다.
+
+### 자동 복구
+- monitor_ble2.sh가 2분마다 ppg.csv 확인
+- 150초 이상 안 쌓이면 자동으로 동글 리셋 + watch_standalone 재시작
+
+---
+
+## 문제 8: "이상한 에러 메시지가 나와요"
 
 ### 흔한 메시지들 (무시해도 됩니다)
 
