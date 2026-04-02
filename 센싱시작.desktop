@@ -1,9 +1,9 @@
 [Desktop Entry]
-Version=2.0
+Version=3.0
 Type=Application
-Name=센싱 시작
-Comment=K-MER 센싱 시스템 런처 (2026-04-01)
-Exec=bash -c 'eval "$(/home/jetson/miniforge3/bin/conda shell.bash hook 2>/dev/null)" && conda activate sensing && cd /home/jetson/work/sensing-collector && python3 launcher.py'
+Name=센싱 시작 (v3)
+Comment=K-MER 센싱 시스템 v3 런처
+Exec=bash -c 'eval "$(/home/jetson/miniforge3/bin/conda shell.bash hook 2>/dev/null)" && conda activate sensing && python3 launcher_v3.py'
 Icon=utilities-system-monitor
 Terminal=false
 Categories=Utility;
